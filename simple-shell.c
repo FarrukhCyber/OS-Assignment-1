@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdlib.h>
 
 #define MAX_LINE 80 /* 80 chars per line, per command */
 
@@ -147,67 +148,101 @@ struct node *tree_maker(char *args)
     return root;
 }
 
+int getLen(char *temp)
+{
+    int i = 0;
+    while (temp[i] != '\0')
+    {
+        // printf("%c ", temp[i] ) ;
+        i++;
+    }
+
+    return i + 1;
+}
+void process(char *temp)
+{
+    int i = 0;
+    while (temp[i] != '\n')
+    {
+        i++;
+    }
+
+    temp[i] = '\0';
+}
+void readInput(char *args[])
+{
+    int count = 0;
+    char cmd[41];
+    char item[41];
+
+    // read input
+    fgets(cmd, 41, stdin);
+    process(cmd);
+
+    if (strlen(cmd) == 0 ){
+        args[0] = "noArgs" ;
+        return ;
+    }
+
+    // printf("check-1: %s ", cmd);
+
+
+    // printf("check-2: %s ", cmd);
+
+    // Create Tokens-----------------
+    int size = strlen(cmd);
+    char delim[] = " ";
+
+    char *ptr = strtok(cmd, delim);
+
+    while (ptr != NULL)
+    {
+        args[count] = ptr;
+        count++;
+        ptr = strtok(NULL, delim);
+    }
+    args[count] = NULL;
+    // printf("%s\n", args[count]);
+
+    // Remove '\n' from the last token
+    // char *temp = args[count - 1];
+    // temp[strlen(temp) - 1] = '\0';
+    // args[count - 1] = temp;
+    // printf("%s", args[count-1]) ;
+    printf("Count: %d\n", count);
+
+    // printf("%s\n", args[0]);
+    // printf("%s\n", args[1]);
+    // printf("%s\n", args[2]);
+    // printf("%s\n", args[3]);
+}
+
 int main(void)
 {
     char *args[MAX_LINE / 2 + 1]; /* command line (of 80) has max of 40 arguments */
     int should_run = 1;
-    char cmd[41];
-    char item[41];
 
-    int x = 0 ;
-
+    int x = 0;
 
     while (should_run)
     {
         printf("osh>");
         fflush(stdout);
 
-        int count = 0;
-        cmd[0] = '\0' ;
-        item[0] = '\0' ;
+        readInput(args);
 
-        // read input
-        // scanf("%[^\n]s", cmd);
-        fgets(cmd, 41, stdin) ;
-
-
-        // Create Tokens-----------------
-        int size = strlen(cmd);
-        char delim[] = " ";
-
-        char *ptr = strtok(cmd, delim);
-
-        while (ptr != NULL)
+        int i = 0;
+        for (i = 0; args[i] != NULL; i++)
         {
-            args[count] = ptr;
-            count++;
-            ptr = strtok(NULL, delim);
-        }
-
-        // Remove '\n' from the last token
-        char *temp = args[count-1] ;
-        temp[strlen(temp) - 1] = '\0';
-        args[count-1] = temp ;
-        // printf("%s", args[count-1]) ;
-        printf("%d\n", count) ;
-
-        args[count] = NULL;
-        printf("%s\n", args[1]) ;
-
-        int i =0;
-        for (i = 0; args[i] != NULL; i++) {
-            printf("check\n") ;
             printf("%s ", args[i]);
         }
-        printf("%s\n", args[i]);
-        
-        
-        // printf("ok %d \n", i) ;
-        //---------------------------------------------
-        // if(x>=1)
-        break;
+        printf("\n");
 
-        x++ ;
+        if (strcmp(args[0], "exit"))
+        {
+            printf("\nBye\n");
+            should_run = 0;
+        }
 
         // int rc = fork();
 
@@ -219,7 +254,7 @@ int main(void)
         // else if (rc == 0)
         // { // child (new process)
         //     // printf("hello, I am child (pid:%d)\n", (int)getpid());
-        //     execvp(args[0], args);  
+        //     execvp(args[0], args);
         // }
         // else
         // { // parent goes down this path (main)
