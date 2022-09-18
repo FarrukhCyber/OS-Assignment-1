@@ -231,6 +231,8 @@ int main(void)
 
         readInput(args);
 
+        // Check Parsing is done correctly
+        //===============
         int i = 0;
         for (i = 0; args[i] != NULL; i++)
         {
@@ -238,30 +240,33 @@ int main(void)
         }
         printf("\n");
 
-        if (strcmp(args[0], "exit"))
+
+        // EXIT CONDITION
+        //===============
+        if (strcmp(args[0], "exit") == 0)
         {
             printf("\nBye\n");
             should_run = 0;
         }
 
-        // int rc = fork();
+        int rc = fork();
 
-        // if (rc < 0)
-        // { // fork failed; exit
-        //     fprintf(stderr, "fork failed\n");
-        //     exit(1);
-        // }
-        // else if (rc == 0)
-        // { // child (new process)
-        //     // printf("hello, I am child (pid:%d)\n", (int)getpid());
-        //     execvp(args[0], args);
-        // }
-        // else
-        // { // parent goes down this path (main)
-        //     int wc = wait(NULL);
-        //     printf("hello, I am parent of %d (wc:%d) (pid:%d)\n",
-        //            rc, wc, (int)getpid());
-        // }
+        if (rc < 0)
+        { // fork failed; exit
+            fprintf(stderr, "fork failed\n");
+            exit(1);
+        }
+        else if (rc == 0)
+        { // child (new process)
+            printf("hello, I am child (pid:%d)\n", (int)getpid());
+            execvp(args[0], args);
+        }
+        else
+        { // parent goes down this path (main)
+            int wc = wait(NULL);
+            printf("hello, I am parent of %d (wc:%d) (pid:%d)\n",
+                   rc, wc, (int)getpid());
+        }
 
         /**
          * After reading user input, the steps are:
