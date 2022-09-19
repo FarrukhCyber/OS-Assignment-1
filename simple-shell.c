@@ -159,6 +159,8 @@ int getLen(char *temp)
 
     return i + 1;
 }
+
+
 void process(char *temp)
 {
     int i = 0;
@@ -169,6 +171,7 @@ void process(char *temp)
 
     temp[i] = '\0';
 }
+
 void readInput(char *args[])
 {
     int count = 0;
@@ -201,7 +204,7 @@ void readInput(char *args[])
         count++;
         ptr = strtok(NULL, delim);
     }
-    args[count] = NULL;
+    args[count] = '\0';
     // printf("%s\n", args[count]);
 
     // Remove '\n' from the last token
@@ -209,7 +212,7 @@ void readInput(char *args[])
     // temp[strlen(temp) - 1] = '\0';
     // args[count - 1] = temp;
     // printf("%s", args[count-1]) ;
-    printf("Count: %d\n", count);
+    // printf("Count: %d\n", count);
 
     // printf("%s\n", args[0]);
     // printf("%s\n", args[1]);
@@ -230,6 +233,7 @@ int main(void)
         fflush(stdout);
 
         readInput(args);
+        
 
         // Check Parsing is done correctly
         //===============
@@ -238,7 +242,8 @@ int main(void)
         {
             printf("%s ", args[i]);
         }
-        printf("\n");
+        printf("%s\n", args[i]);
+        // printf("%s %s %s\n", args[0], args[1], args[2]);
 
 
         // EXIT CONDITION
@@ -249,24 +254,24 @@ int main(void)
             should_run = 0;
         }
 
-        int rc = fork();
+        // int rc = fork();
 
-        if (rc < 0)
-        { // fork failed; exit
-            fprintf(stderr, "fork failed\n");
-            exit(1);
-        }
-        else if (rc == 0)
-        { // child (new process)
-            printf("hello, I am child (pid:%d)\n", (int)getpid());
-            execvp(args[0], args);
-        }
-        else
-        { // parent goes down this path (main)
-            int wc = wait(NULL);
-            printf("hello, I am parent of %d (wc:%d) (pid:%d)\n",
-                   rc, wc, (int)getpid());
-        }
+        // if (rc < 0)
+        // { // fork failed; exit
+        //     fprintf(stderr, "fork failed\n");
+        //     exit(1);
+        // }
+        // else if (rc == 0)
+        // {   // child (new process)
+        //     // printf("hello, I am child (pid:%d)\n", (int)getpid());
+        //     execvp(args[0], args);
+        // }
+        // else
+        // {   // parent goes down this path (main)
+        //     int wc = wait(NULL);
+        //     // printf("hello, I am parent of %d (wc:%d) (pid:%d)\n",
+        //     //        rc, wc, (int)getpid());
+        // }
 
         /**
          * After reading user input, the steps are:
