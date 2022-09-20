@@ -187,24 +187,19 @@ void readInput(char *args[])
         return ;
     }
 
-    // printf("check-1: %s ", cmd);
-
-
-    // printf("check-2: %s ", cmd);
 
     // Create Tokens-----------------
     int size = strlen(cmd);
-    char delim[] = " ";
 
-    char *ptr = strtok(cmd, delim);
+    char *ptr = strtok(cmd, " ");
 
     while (ptr != NULL)
     {
         args[count] = ptr;
         count++;
-        ptr = strtok(NULL, delim);
+        ptr = strtok(NULL, " ");
     }
-    args[count] = '\0';
+    args[count] = NULL;
     // printf("%s\n", args[count]);
 
     // Remove '\n' from the last token
@@ -214,10 +209,12 @@ void readInput(char *args[])
     // printf("%s", args[count-1]) ;
     // printf("Count: %d\n", count);
 
-    // printf("%s\n", args[0]);
+    // printf("%s ", args[0]);
     // printf("%s\n", args[1]);
     // printf("%s\n", args[2]);
     // printf("%s\n", args[3]);
+    // printf("%s\n", args);
+
 }
 
 int main(void)
@@ -232,6 +229,12 @@ int main(void)
         printf("osh>");
         fflush(stdout);
 
+        for (int i = 0; i < 41; i++)
+        {
+            args[i] = '\0' ;
+        }
+        
+
         readInput(args);
         
 
@@ -242,36 +245,36 @@ int main(void)
         {
             printf("%s ", args[i]);
         }
-        printf("%s\n", args[i]);
-        // printf("%s %s %s\n", args[0], args[1], args[2]);
+        // printf("\n");
+        // // printf("%s %s %s\n", args[0], args[1], args[2]);
 
 
-        // EXIT CONDITION
-        //===============
+        // // EXIT CONDITION
+        // //===============
         if (strcmp(args[0], "exit") == 0)
         {
-            printf("\nBye\n");
+            // printf("\nBye\n");
             should_run = 0;
         }
 
-        // int rc = fork();
+        int rc = fork();
 
-        // if (rc < 0)
-        // { // fork failed; exit
-        //     fprintf(stderr, "fork failed\n");
-        //     exit(1);
-        // }
-        // else if (rc == 0)
-        // {   // child (new process)
-        //     // printf("hello, I am child (pid:%d)\n", (int)getpid());
-        //     execvp(args[0], args);
-        // }
-        // else
-        // {   // parent goes down this path (main)
-        //     int wc = wait(NULL);
-        //     // printf("hello, I am parent of %d (wc:%d) (pid:%d)\n",
-        //     //        rc, wc, (int)getpid());
-        // }
+        if (rc < 0)
+        { // fork failed; exit
+            fprintf(stderr, "fork failed\n");
+            exit(1);
+        }
+        else if (rc == 0)
+        {   // child (new process)
+            // printf("hello, I am child (pid:%d)\n", (int)getpid());
+            execvp(args[0], args);
+        }
+        else
+        {   // parent goes down this path (main)
+            int wc = wait(NULL);
+            // printf("hello, I am parent of %d (wc:%d) (pid:%d)\n",
+            //        rc, wc, (int)getpid());
+        }
 
         /**
          * After reading user input, the steps are:
