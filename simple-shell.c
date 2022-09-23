@@ -7,9 +7,10 @@
 
 #include <stdio.h>
 #include <unistd.h>
-#include <string.h>
-#include <ctype.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #define MAX_LINE 80 /* 80 chars per line, per command */
 
@@ -65,8 +66,6 @@ char *parser(char *arr, int starting_index)
         i = i + 1;
         j = j + 1;
     }
-
-    printf("\n %s \n", return_array);
 
     return return_array;
 }
@@ -148,73 +147,41 @@ struct node *tree_maker(char *args)
     return root;
 }
 
-int getLen(char *temp)
+void initialize_args(char* args[])
+{
+    for (int i = 0; i < MAX_LINE / 2 + 1; i++) {
+        args[i] = NULL;
+    }
+}
+
+char *read_input(char *args[])
+{
+    char *command_str = malloc(sizeof(char) * MAX_LINE / 2 + 1); // !!!FREE IN CHILD PROCESS!!!
+    fgets(command_str, MAX_LINE / 2 + 1, stdin);
+    
+    // Remove newline character
+    for (int i = 0; i < MAX_LINE / 2 + 1; i++)
+    {
+        if (command_str[i] == '\n') {
+            command_str[i] = '\0';
+        }
+    }
+
+    return command_str;
+}
+
+void populate_args(char *args[], char *user_input)
 {
     int i = 0;
-    while (temp[i] != '\0')
-    {
-        // printf("%c ", temp[i] ) ;
-        i++;
-    }
+    char *token = strtok(user_input, " ");
+    args[i] = token;
 
-    return i + 1;
-}
-void process(char *temp)
-{
-    int i = 0;
-    while (temp[i] != '\n')
+    while (token != NULL)
     {
         i++;
+        token = strtok(NULL, " ");
+        args[i] = token;
     }
-
-    temp[i] = '\0';
-}
-void readInput(char *args[])
-{
-    int count = 0;
-    char cmd[41];
-    char item[41];
-
-    // read input
-    fgets(cmd, 41, stdin);
-    process(cmd);
-
-    if (strlen(cmd) == 0 ){
-        args[0] = "noArgs" ;
-        return ;
-    }
-
-    // printf("check-1: %s ", cmd);
-
-
-    // printf("check-2: %s ", cmd);
-
-    // Create Tokens-----------------
-    int size = strlen(cmd);
-    char delim[] = " ";
-
-    char *ptr = strtok(cmd, delim);
-
-    while (ptr != NULL)
-    {
-        args[count] = ptr;
-        count++;
-        ptr = strtok(NULL, delim);
-    }
-    args[count] = NULL;
-    // printf("%s\n", args[count]);
-
-    // Remove '\n' from the last token
-    // char *temp = args[count - 1];
-    // temp[strlen(temp) - 1] = '\0';
-    // args[count - 1] = temp;
-    // printf("%s", args[count-1]) ;
-    printf("Count: %d\n", count);
-
-    // printf("%s\n", args[0]);
-    // printf("%s\n", args[1]);
-    // printf("%s\n", args[2]);
-    // printf("%s\n", args[3]);
 }
 
 int main(void)
@@ -222,59 +189,45 @@ int main(void)
     char *args[MAX_LINE / 2 + 1]; /* command line (of 80) has max of 40 arguments */
     int should_run = 1;
 
-    int x = 0;
-
     while (should_run)
     {
+        initialize_args(args); // args needs to be re-initialized after a child process is done, otherwise the command tokens remain in the args array, hence initializing args here
         printf("osh>");
         fflush(stdout);
 
-        readInput(args);
+        char *user_input = read_input(args);
 
-        // Check Parsing is done correctly
-        //===============
-        int i = 0;
-        for (i = 0; args[i] != NULL; i++)
-        {
-            printf("%s ", args[i]);
-        }
-        printf("\n");
+        // printf("%s\n", user_input);
 
-
-        // EXIT CONDITION
-        //===============
-        if (strcmp(args[0], "exit") == 0)
-        {
-            printf("\nBye\n");
-            should_run = 0;
-        }
-
-        int rc = fork();
-
-        if (rc < 0)
-        { // fork failed; exit
-            fprintf(stderr, "fork failed\n");
-            exit(1);
-        }
-        else if (rc == 0)
-        { // child (new process)
-            printf("hello, I am child (pid:%d)\n", (int)getpid());
-            execvp(args[0], args);
-        }
-        else
-        { // parent goes down this path (main)
-            int wc = wait(NULL);
-            printf("hello, I am parent of %d (wc:%d) (pid:%d)\n",
-                   rc, wc, (int)getpid());
-        }
-
+        populate_args(args, user_input);
+        
         /**
          * After reading user input, the steps are:
          * (1) fork a child process
          * (2) the child process will invoke execvp()
          * (3) if command includes &, parent and child will run concurrently
          */
+
+        int rc = fork();
+
+        if (rc < 0)
+        {
+            fprintf(stderr, "fork failed\n");
+            exit(1);
+        } 
+        else if (rc == 0) // child
+        {
+            execvp(args[0], args);
+        } 
+        else
+        {
+            int rc_wait = wait(NULL);
+        }
+
+        free(user_input);
     }
+
+
 
     return 0;
 }
