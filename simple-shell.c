@@ -13,6 +13,7 @@
 #include <sys/wait.h>
 
 #define MAX_LINE 80 /* 80 chars per line, per command */
+#define MAX_PID 32768 /* max pid value in Linux */
 
 struct node
 {
@@ -147,20 +148,20 @@ struct node *tree_maker(char *args)
     return root;
 }
 
-void initialize_args(char* args[])
+void initialize_with_NULL(char* args[])
 {
     for (int i = 0; i < MAX_LINE / 2 + 1; i++) {
         args[i] = NULL;
     }
 }
 
-char *read_input(char *args[])
+char *read_input()
 {
-    char *command_str = malloc(sizeof(char) * MAX_LINE / 2 + 1); // !!!FREE IN CHILD PROCESS!!!
-    fgets(command_str, MAX_LINE / 2 + 1, stdin);
+    char *command_str = malloc(sizeof(char) * MAX_LINE); // !!!FREE IN CHILD PROCESS!!!
+    fgets(command_str, MAX_LINE, stdin);
     
     // Remove newline character
-    for (int i = 0; i < MAX_LINE / 2 + 1; i++)
+    for (int i = 0; i < MAX_LINE; i++)
     {
         if (command_str[i] == '\n') {
             command_str[i] = '\0';
@@ -170,7 +171,7 @@ char *read_input(char *args[])
     return command_str;
 }
 
-void populate_args(char *args[], char *user_input)
+void tokenize_populate_args(char *args[], char *user_input)
 {
     int i = 0;
     char *token = strtok(user_input, " ");
@@ -184,31 +185,102 @@ void populate_args(char *args[], char *user_input)
     }
 }
 
-int main(void)
+int len(char *string)
+{
+    int count = 0;
+    int i = 0;
+
+    while (string[i] != '\0') {
+        count++;
+        i++;
+    }
+
+    return count;
+}
+
+// in order to have children run many arguments concurrently, creating a new function that treats each argument separately by each child
+void run_child(char *child_arg)
 {
     char *args[MAX_LINE / 2 + 1]; /* command line (of 80) has max of 40 arguments */
+    initialize_with_NULL(args); // Initializing every element of args with NULL pointer
+    tokenize_populate_args(args, child_arg);
+
+    execvp(args[0], args);
+}
+
+char **tokenize_user_input_with_ampersand(char *user_input)
+{
+    // TODO: !!! FREE IN PARENT PROCESS !!!
+    char **ampersand_tokenized_user_input; // Array of strings i.e. Array of char *.
+    ampersand_tokenized_user_input = malloc(sizeof(*ampersand_tokenized_user_input) * (MAX_LINE / 2 + 1)); // allocating space for 40 ampersand separated arguments
+    initialize_with_NULL(ampersand_tokenized_user_input); // Important to get length of total ampersand separated tokens
+    
+    for (int i = 0; i < MAX_LINE / 2 + 1; i++) {
+        ampersand_tokenized_user_input[i] = malloc(sizeof(**ampersand_tokenized_user_input) * (MAX_LINE / 2 + 1)); // allocating space for each 40 space separated arguments i.e. one whole input of one child processs
+    }
+
+    int i = 0;
+    char *token = strtok(user_input, "&");
+    ampersand_tokenized_user_input[i] = token;
+    // printf("Testing: %s\n", token);
+
+    while (token != NULL)
+    {
+        i++;
+        token = strtok(NULL, "&");
+        ampersand_tokenized_user_input[i] = token;
+        // printf("Testing: %s\n", token);
+    }
+
+    return ampersand_tokenized_user_input;
+}
+
+int len_via_NULL(char **argument)
+{
+    int count = 0;
+    int i = 0;
+
+    while (argument[i] != NULL) {
+        count++;
+        i++;
+    }
+
+    return count;
+}
+
+int main(void)
+{
     int should_run = 1;
+    char **child_process_args = malloc(sizeof(*child_process_args) * (MAX_PID + 1)); // So we can reference each child's arg by that child's process id
+    initialize_with_NULL(child_process_args);
+    int rc;
 
     while (should_run)
-    {
-        initialize_args(args); // args needs to be re-initialized after a child process is done, otherwise the command tokens remain in the args array, hence initializing args here
+    {        
         printf("osh>");
         fflush(stdout);
 
-        char *user_input = read_input(args);
+        char *user_input = read_input(); // TODO: Add condition for 40 character limit
 
-        // printf("%s\n", user_input);
+        // TODO: !!! ADD EXIT CONDITON !!!
 
-        populate_args(args, user_input);
+        char **ampersand_tokenized_user_input = tokenize_user_input_with_ampersand(user_input);
         
-        /**
-         * After reading user input, the steps are:
-         * (1) fork a child process
-         * (2) the child process will invoke execvp()
-         * (3) if command includes &, parent and child will run concurrently
-         */
+        int num_forks = len_via_NULL(ampersand_tokenized_user_input);
+        
+        // parent spawning forks in a for loop with iter < num_forks
+        // How to have run_child
 
-        int rc = fork();
+        for (int i = 0; i < num_forks; i++)
+        {
+            rc = fork();
+
+            if (rc == 0) // if child, exit loop, if parent, continue spawning children
+            {
+                child_process_args[(int) getpid()] = ampersand_tokenized_user_input[i];
+                break;
+            }
+        }
 
         if (rc < 0)
         {
@@ -217,17 +289,29 @@ int main(void)
         } 
         else if (rc == 0) // child
         {
-            execvp(args[0], args);
+            run_child(child_process_args[(int) getpid()]);
+            child_process_args[(int) getpid()] = NULL; // depopulate child args when done
         } 
         else
         {
-            int rc_wait = wait(NULL);
+            while (wait(NULL) > 0); // wait for all child processes
         }
 
         free(user_input);
     }
 
-
-
     return 0;
 }
+
+/**
+ * After reading user input, the steps are:
+ * (1) fork a child process
+ * (2) the child process will invoke execvp()
+ * (3) if command includes &, parent and child will run concurrently
+ */
+
+/**
+ * 1) read user input and count how many forks to create
+ * 2) create and populate args for each child separately. 
+ * 3) create a fork for each child and for each && delimited string
+ */
