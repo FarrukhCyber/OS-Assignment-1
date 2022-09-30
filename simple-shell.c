@@ -7,11 +7,13 @@
 
 #include <stdio.h>
 #include <unistd.h>
-#include <string.h>
-#include <ctype.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
-#define MAX_LINE 80 /* 80 chars per line, per command */
+#define MAX_LINE 80   /* 80 chars per line, per command */
+#define MAX_PID 32768 /* max pid value in Linux */
 
 struct node
 {
@@ -65,8 +67,6 @@ char *parser(char *arr, int starting_index)
         i = i + 1;
         j = j + 1;
     }
-
-    printf("\n %s \n", return_array);
 
     return return_array;
 }
@@ -148,133 +148,330 @@ struct node *tree_maker(char *args)
     return root;
 }
 
-int getLen(char *temp)
+void initialize_with_NULL(char *args[])
 {
-    int i = 0;
-    while (temp[i] != '\0')
+    for (int i = 0; i < MAX_LINE / 2 + 1; i++)
     {
-        // printf("%c ", temp[i] ) ;
-        i++;
+        args[i] = NULL;
+    }
+}
+
+char *read_input()
+{
+    char *command_str = malloc(sizeof(char) * MAX_LINE); // !!!FREE IN CHILD PROCESS!!!
+    fgets(command_str, MAX_LINE, stdin);
+
+    // Remove newline character
+    for (int i = 0; i < MAX_LINE; i++)
+    {
+        if (command_str[i] == '\n')
+        {
+            command_str[i] = '\0';
+        }
     }
 
-    return i + 1;
+    return command_str;
 }
-void process(char *temp)
+
+void tokenize_populate_args(char *args[], char *user_input)
 {
     int i = 0;
-    while (temp[i] != '\n')
+    char *token = strtok(user_input, " ");
+    args[i] = token;
+
+    while (token != NULL)
     {
         i++;
+        token = strtok(NULL, " ");
+        args[i] = token;
     }
-
-    temp[i] = '\0';
 }
-void readInput(char *args[])
+
+int len(char *string)
 {
     int count = 0;
-    char cmd[41];
-    char item[41];
+    int i = 0;
 
-    // read input
-    fgets(cmd, 41, stdin);
-    process(cmd);
-
-    if (strlen(cmd) == 0 ){
-        args[0] = "noArgs" ;
-        return ;
-    }
-
-    // printf("check-1: %s ", cmd);
-
-
-    // printf("check-2: %s ", cmd);
-
-    // Create Tokens-----------------
-    int size = strlen(cmd);
-    char delim[] = " ";
-
-    char *ptr = strtok(cmd, delim);
-
-    while (ptr != NULL)
+    while (string[i] != '\0')
     {
-        args[count] = ptr;
         count++;
-        ptr = strtok(NULL, delim);
+        i++;
     }
-    args[count] = NULL;
-    // printf("%s\n", args[count]);
 
-    // Remove '\n' from the last token
-    // char *temp = args[count - 1];
-    // temp[strlen(temp) - 1] = '\0';
-    // args[count - 1] = temp;
-    // printf("%s", args[count-1]) ;
-    printf("Count: %d\n", count);
-
-    // printf("%s\n", args[0]);
-    // printf("%s\n", args[1]);
-    // printf("%s\n", args[2]);
-    // printf("%s\n", args[3]);
+    return count;
 }
+
+// in order to have children run many arguments concurrently, creating a new function that treats each argument separately by each child
+void run_child(char *child_arg)
+{
+    char *args[MAX_LINE / 2 + 1]; /* command line (of 80) has max of 40 arguments */
+    initialize_with_NULL(args);   // Initializing every element of args with NULL pointer
+    tokenize_populate_args(args, child_arg);
+
+    execvp(args[0], args);
+}
+
+char **tokenize_user_input_with_ampersand(char *user_input)
+{
+    // TODO: !!! FREE IN PARENT PROCESS !!!
+    char **ampersand_tokenized_user_input;                                                                 // Array of strings i.e. Array of char *.
+    ampersand_tokenized_user_input = malloc(sizeof(*ampersand_tokenized_user_input) * (MAX_LINE / 2 + 1)); // allocating space for 40 ampersand separated arguments
+    initialize_with_NULL(ampersand_tokenized_user_input);                                                  // Important to get length of total ampersand separated tokens
+
+    for (int i = 0; i < MAX_LINE / 2 + 1; i++)
+    {
+        ampersand_tokenized_user_input[i] = malloc(sizeof(**ampersand_tokenized_user_input) * (MAX_LINE / 2 + 1)); // allocating space for each 40 space separated arguments i.e. one whole input of one child processs
+    }
+
+    int i = 0;
+    char *token = strtok(user_input, "&");
+    ampersand_tokenized_user_input[i] = token;
+    // printf("Testing: %s\n", token);
+
+    while (token != NULL)
+    {
+        i++;
+        token = strtok(NULL, "&");
+        ampersand_tokenized_user_input[i] = token;
+        // printf("Testing: %s\n", token);
+    }
+
+    return ampersand_tokenized_user_input;
+}
+
+int len_via_NULL(char **argument)
+{
+    int count = 0;
+    int i = 0;
+
+    while (argument[i] != NULL)
+    {
+        count++;
+        i++;
+    }
+
+    return count;
+}
+
+//=========== IMPLEMENTATION OF DOUBLY CIRCULAR LINKED LIST ===========
+struct Node
+{
+    char *input;
+    struct Node *next;
+    struct Node *prev;
+};
+
+struct Node *create_node(char *input)
+{
+    struct Node *new_node = (struct Node *)malloc(sizeof(struct Node));
+
+    new_node->input = malloc(sizeof(char) * MAX_LINE);
+    new_node->input = input; // SET THE VALUE
+
+    return new_node;
+}
+
+struct Node *insert_node(struct Node *current, char *input)
+{
+
+    // WHEN THE LIST IS EMPTY
+    if (current == NULL)
+    {
+        current = create_node(input); // POINT TO NEW NODE
+        current->next = current;      // MAKE IT CIRCULAR
+        current->prev = current;      // NEW
+
+        return current;
+    }
+
+    struct Node *new_node = create_node(input);
+    new_node->next = current->next;
+    new_node->prev = current; // NEW
+    current->next = new_node;
+
+    current = new_node;
+
+    current->next->prev = current; // NEW
+
+    return current;
+}
+
+void display_list(struct Node *current)
+{
+    struct Node *temp = current;
+
+    if (current == NULL)
+    {
+        printf("%s\n", "No Commands in history");
+        return;
+    }
+
+    while (temp->prev != current)
+    {
+        // printf("%s\n", "check-1") ;
+        printf(" %s ->", temp->input);
+        temp = temp->prev;
+    }
+    // printf("%s\n", "check-2") ;
+    printf(" %s", temp->input);
+    printf("\n");
+}
+
+int list_length(struct Node *current)
+{
+
+    if (current == NULL)
+    {
+        return 0;
+    }
+
+    struct Node *temp = current->next;
+    int count = 0;
+
+    if (temp == current)
+    {
+        return 1;
+    }
+
+    while (temp != current)
+    {
+        // printf("%s ", temp->input) ;
+        count++;
+        temp = temp->next;
+    }
+
+    return count + 1;
+}
+
+char *command_at_index(struct Node *current, int n)
+{
+
+    struct Node *temp = current;
+    for (int i = 1; i < n; i++)
+    {
+        temp = temp->prev;
+    }
+
+    return temp->input;
+}
+
+int hist_found(char *input)
+{
+    char *temp = strstr(input, "hist");
+
+    return (temp ? 1 : 0);
+}
+
+char * get_command_history(char *input, struct Node* current) {
+
+    int length = len(input) ;
+
+    // hist with no args
+    if(length <=5) {
+        display_list(current) ;
+        return input ;
+    }
+    else { 
+        //TODO: Fix the code for 2 digit args----------
+        // char *num = input[6] ;
+        // int n = atoi(num) ;
+        int n = (int) input[6] ;
+        n = n-48 ;
+        printf("Number: %d\n", n) ;
+
+        if(list_length(current) < n || n==0) {
+            printf("%s\n", "No command found") ;
+        }
+        else {
+            input = command_at_index(current, n) ;
+            printf("Command at %d is %s\n", n, input) ;
+            return input ;
+        }
+    }
+
+}
+
+//===============================================================================
 
 int main(void)
 {
-    char *args[MAX_LINE / 2 + 1]; /* command line (of 80) has max of 40 arguments */
     int should_run = 1;
-
-    int x = 0;
+    char **child_process_args = malloc(sizeof(*child_process_args) * (MAX_PID + 1)); // So we can reference each child's arg by that child's process id
+    initialize_with_NULL(child_process_args);
+    int rc;
+    struct Node *current = NULL;
 
     while (should_run)
     {
         printf("osh>");
         fflush(stdout);
 
-        readInput(args);
+        char *user_input = read_input(); // TODO: Add condition for 40 character limit
 
-        // Check Parsing is done correctly
-        //===============
-        int i = 0;
-        for (i = 0; args[i] != NULL; i++)
+        if (hist_found(user_input))
         {
-            printf("%s ", args[i]);
+            // this will change the user_input to the specified command from the history
+            user_input = get_command_history(user_input, current);
+            printf("%s\n", user_input) ;
         }
-        printf("\n");
-
-
-        // EXIT CONDITION
-        //===============
-        if (strcmp(args[0], "exit") == 0)
+        else
         {
-            printf("\nBye\n");
-            should_run = 0;
+            current = insert_node(current, user_input);
         }
 
-        int rc = fork();
+        
+
+        // TODO: !!! ADD EXIT CONDITON !!!
+        char **ampersand_tokenized_user_input = tokenize_user_input_with_ampersand(user_input);
+
+        int num_forks = len_via_NULL(ampersand_tokenized_user_input);
+
+        // parent spawning forks in a for loop with iter < num_forks
+        // How to have run_child
+
+        for (int i = 0; i < num_forks; i++)
+        {
+            rc = fork();
+
+            if (rc == 0) // if child, exit loop, if parent, continue spawning children
+            {
+                child_process_args[(int)getpid()] = ampersand_tokenized_user_input[i];
+                break;
+            }
+        }
 
         if (rc < 0)
-        { // fork failed; exit
+        {
             fprintf(stderr, "fork failed\n");
             exit(1);
         }
-        else if (rc == 0)
-        { // child (new process)
-            printf("hello, I am child (pid:%d)\n", (int)getpid());
-            execvp(args[0], args);
+        else if (rc == 0) // child
+        {
+            run_child(child_process_args[(int)getpid()]);
+            child_process_args[(int)getpid()] = NULL; // depopulate child args when done
         }
         else
-        { // parent goes down this path (main)
-            int wc = wait(NULL);
-            printf("hello, I am parent of %d (wc:%d) (pid:%d)\n",
-                   rc, wc, (int)getpid());
+        {
+            while (wait(NULL) > 0)
+                ; // wait for all child processes
         }
 
-        /**
-         * After reading user input, the steps are:
-         * (1) fork a child process
-         * (2) the child process will invoke execvp()
-         * (3) if command includes &, parent and child will run concurrently
-         */
+
+        // free(user_input); // history buffer doesn't work by Turning it on 
     }
 
     return 0;
 }
+
+/**
+ * After reading user input, the steps are:
+ * (1) fork a child process
+ * (2) the child process will invoke execvp()
+ * (3) if command includes &, parent and child will run concurrently
+ */
+
+/**
+ * 1) read user input and count how many forks to create
+ * 2) create and populate args for each child separately.
+ * 3) create a fork for each child and for each && delimited string
+ */
