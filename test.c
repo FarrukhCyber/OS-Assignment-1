@@ -229,7 +229,7 @@ char **tokenize_user_input_with_ampersand(char *user_input)
     // printf("Testing: %s\n", token);
 
     while (token != NULL)
-    {
+    {   
         i++;
         token = strtok(NULL, "&");
         ampersand_tokenized_user_input[i] = token;
@@ -411,21 +411,25 @@ int main(void)
         printf("osh>");
         fflush(stdout);
 
-        char *user_input = read_input(); // TODO: Add condition for 40 character limit
+        char *user_input = malloc(sizeof(char) * MAX_LINE) ;
+        user_input = read_input(); // TODO: Add condition for 40 character limit
         char *temp ;
         temp = strdup(user_input) ;
+
 
         if (hist_found(user_input))
         {
             // this will change the user_input to the specified command from the history
             user_input = get_command_history(user_input, current);
-            // printf("check: %s\n", user_input);
+            printf("check: %s\n", user_input);
+            continue;
         }
         else
         {
             current = insert_node(current, temp);
             // printf("Node to be inserted: %s\n", current->input);
         }
+        // free(temp) ;
 
         // TODO: !!! ADD EXIT CONDITON !!!
         char **ampersand_tokenized_user_input = tokenize_user_input_with_ampersand(user_input);
