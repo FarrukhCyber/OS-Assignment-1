@@ -390,13 +390,133 @@ char *get_command_history(char *input, struct Node *current)
         else
         {
             input = command_at_index(current, n);
-            printf("Command at %d is %s\n", n, input);
+            // printf("Command at %d is %s\n", n, input);
+            printf("%s\n", input) ;
             return input;
         }
     }
 }
 
 //===============================================================================
+
+//===============  IMPLEMENTATION FOR HANDLING PIPES=======================================
+int pipe_found(char *input)
+{
+    char *temp = strstr(input, "||");
+    return (temp ? 1 : 0);
+}
+
+char **tokenize_user_input_with_pipe(char *user_input)
+{
+    // TODO: !!! FREE IN PARENT PROCESS !!!
+    char **pipe_tokenized_user_input;                                                            // Array of strings i.e. Array of char *.
+    pipe_tokenized_user_input = malloc(sizeof(*pipe_tokenized_user_input) * (MAX_LINE / 2 + 1)); // allocating space for 40 ampersand separated arguments
+    initialize_with_NULL(pipe_tokenized_user_input);                                             // Important to get length of total ampersand separated tokens
+
+    for (int i = 0; i < MAX_LINE / 2 + 1; i++)
+    {
+        pipe_tokenized_user_input[i] = malloc(sizeof(**pipe_tokenized_user_input) * (MAX_LINE / 2 + 1)); // allocating space for each 40 space separated arguments i.e. one whole input of one child processs
+    }
+
+    int i = 0;
+    char *token = strtok(user_input, "|");
+    pipe_tokenized_user_input[i] = token;
+    // printf("Testing: %s\n", token);
+
+    while (token != NULL)
+    {
+        i++;
+        token = strtok(NULL, "|");
+        pipe_tokenized_user_input[i] = token;
+        // printf("Testing: %s\n", token);
+    }
+
+    return pipe_tokenized_user_input;
+}
+
+void run_piped_child(char *child_arg)
+{
+    char *args[MAX_LINE / 2 + 1]; /* command line (of 80) has max of 40 arguments */
+    initialize_with_NULL(args);   // Initializing every element of args with NULL pointer
+    tokenize_populate_args(args, child_arg);
+
+    execvp(args[0], args);
+}
+
+void close_all_pipes(int fd[][2], int num_pipes)
+{
+    for (int i = 0; i < num_pipes - 1; i++)
+    {
+        for (int j = 0; j < 2; j++)
+        {
+            close(fd[i][j]);
+        }
+    }
+}
+
+void handle_pipe_commands(char *user_input)
+{
+    char **pipe_tokenized_user_input;
+    pipe_tokenized_user_input = tokenize_user_input_with_pipe(user_input);
+    int num_forks = len_via_NULL(pipe_tokenized_user_input);
+
+    int num_pipes = num_forks - 1;
+    int fd[num_pipes][2];
+
+    // create pipes
+    for (int i = 0; i < num_pipes; i++)
+    {
+        if (pipe(fd[i]) < 0)
+        {
+            printf("An Error Ocurred in creating a pipe \n");
+            return 1;
+        }
+    }
+
+    // create Forks
+    int pipe_id = 0;
+    for (int i = 0; i < num_forks; i++)
+    {
+        int p_id = fork();
+
+        if (p_id < 0)
+        {
+            printf("An Error Ocurred in creating a fork \n");
+            return 1;
+        }
+
+        // Child process
+        if (p_id == 0)
+        {
+            // First Command
+            if (i == 0)
+            {
+                dup2(fd[i][1], STDOUT_FILENO);
+                close_all_pipes(fd, num_pipes);
+                run_piped_child(pipe_tokenized_user_input[i]);
+            }
+
+            // LAST Command
+            else if (i == num_forks - 1)
+            {
+                dup2(fd[i-1][0], STDIN_FILENO);
+                close_all_pipes(fd, num_pipes);
+                run_piped_child(pipe_tokenized_user_input[i]);
+            }
+            else
+            {
+                dup2(fd[i - 1][0], STDIN_FILENO);
+                dup2(fd[i][1], STDOUT_FILENO);
+                close_all_pipes(fd, num_pipes);
+                run_piped_child(pipe_tokenized_user_input[i]);
+            }
+        }
+    }
+
+    // Parent closes all pipes
+    close_all_pipes(fd, num_pipes);
+    while (wait(NULL) > 0);
+}
 
 int main(void)
 {
@@ -412,8 +532,14 @@ int main(void)
         fflush(stdout);
 
         char *user_input = read_input(); // TODO: Add condition for 40 character limit
-        char *temp ;
-        temp = strdup(user_input) ;
+        char *temp = strdup(user_input);
+
+        // EXIT CONDITION
+        if(strstr(user_input, "exit")) {
+            should_run = 0 ;
+            break ;
+        }
+
 
         if (hist_found(user_input))
         {
@@ -425,6 +551,12 @@ int main(void)
         {
             current = insert_node(current, temp);
             // printf("Node to be inserted: %s\n", current->input);
+        }
+
+        if (pipe_found(user_input))
+        {
+            handle_pipe_commands(user_input) ;
+            continue;
         }
 
         // TODO: !!! ADD EXIT CONDITON !!!
@@ -458,7 +590,7 @@ int main(void)
         }
         else
         {
-            while (wait(NULL) > 0);     // wait for all child processes
+            while (wait(NULL) > 0); // wait for all child processes
         }
 
         // free(user_input); // history buffer doesn't work by Turning it on
