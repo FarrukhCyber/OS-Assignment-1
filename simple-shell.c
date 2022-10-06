@@ -292,6 +292,7 @@ struct Node *insert_node(struct Node *current, char *input)
     current = new_node;
 
     current->next->prev = current; // NEW
+    // printf("Node to be inserted: %s\n", current->input);
 
     return current;
 }
@@ -362,33 +363,37 @@ int hist_found(char *input)
     return (temp ? 1 : 0);
 }
 
-char * get_command_history(char *input, struct Node* current) {
+char *get_command_history(char *input, struct Node *current)
+{
 
-    int length = len(input) ;
+    int length = len(input);
 
     // hist with no args
-    if(length <=5) {
-        display_list(current) ;
-        return input ;
+    if (length <= 5)
+    {
+        display_list(current);
+        return input;
     }
-    else { 
-        //TODO: Fix the code for 2 digit args----------
-        // char *num = input[6] ;
-        // int n = atoi(num) ;
-        int n = (int) input[6] ;
-        n = n-48 ;
-        printf("Number: %d\n", n) ;
+    else
+    {
+        // TODO: Fix the code for 2 digit args----------
+        //  char *num = input[6] ;
+        //  int n = atoi(num) ;
+        int n = (int)input[6];
+        n = n - 48;
+        printf("Number: %d\n", n);
 
-        if(list_length(current) < n || n==0) {
-            printf("%s\n", "No command found") ;
+        if (list_length(current) < n || n == 0)
+        {
+            printf("%s\n", "No command found");
         }
-        else {
-            input = command_at_index(current, n) ;
-            printf("Command at %d is %s\n", n, input) ;
-            return input ;
+        else
+        {
+            input = command_at_index(current, n);
+            printf("Command at %d is %s\n", n, input);
+            return input;
         }
     }
-
 }
 
 //===============================================================================
@@ -407,19 +412,20 @@ int main(void)
         fflush(stdout);
 
         char *user_input = read_input(); // TODO: Add condition for 40 character limit
+        char *temp ;
+        temp = strdup(user_input) ;
 
         if (hist_found(user_input))
         {
             // this will change the user_input to the specified command from the history
             user_input = get_command_history(user_input, current);
-            printf("%s\n", user_input) ;
+            // printf("check: %s\n", user_input);
         }
         else
         {
-            current = insert_node(current, user_input);
+            current = insert_node(current, temp);
+            // printf("Node to be inserted: %s\n", current->input);
         }
-
-        
 
         // TODO: !!! ADD EXIT CONDITON !!!
         char **ampersand_tokenized_user_input = tokenize_user_input_with_ampersand(user_input);
@@ -452,12 +458,10 @@ int main(void)
         }
         else
         {
-            while (wait(NULL) > 0)
-                ; // wait for all child processes
+            while (wait(NULL) > 0);     // wait for all child processes
         }
 
-
-        // free(user_input); // history buffer doesn't work by Turning it on 
+        // free(user_input); // history buffer doesn't work by Turning it on
     }
 
     return 0;

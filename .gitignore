@@ -1,2 +1,4 @@
-a.out
+*.out
 simple-shell
+*.exe
+./linked-list.c
