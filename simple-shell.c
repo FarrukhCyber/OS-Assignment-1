@@ -693,10 +693,11 @@ int main(void)
                 struct node *tree_root = tree_maker(parsed_tree_args[1]);
                 int i = 0;
                 in_order_traversal(tree_root, tree_user_input, &i);
-                printf("Tree input is: %s\n", tree_user_input);
+                
+                user_input = tree_user_input;
             }
             
-            continue;
+            // continue;
         }
 
         // TODO: !!! ADD EXIT CONDITON !!!
