@@ -518,6 +518,128 @@ void handle_pipe_commands(char *user_input)
     while (wait(NULL) > 0);
 }
 
+// IMPLEMENTATION FOR Part 4(b) //
+
+char **tokenize_user_input_with_space(char *user_input)
+{
+    // TODO: !!! FREE IN PARENT PROCESS !!!
+    char **space_tokenized_user_input;                                                                 // Array of strings i.e. Array of char *.
+    space_tokenized_user_input = malloc(sizeof(*space_tokenized_user_input) * (MAX_LINE / 2 + 1)); // allocating space for 40 space separated arguments
+    initialize_with_NULL(space_tokenized_user_input);                                                  // Important to get length of total space separated tokens
+
+    for (int i = 0; i < MAX_LINE / 2 + 1; i++)
+    {
+        space_tokenized_user_input[i] = malloc(sizeof(**space_tokenized_user_input) * (MAX_LINE / 2 + 1)); // allocating space for each 40 space separated arguments i.e. one whole input of one child processs
+    }
+
+    int i = 0;
+    char *token = strtok(user_input, " ");
+    space_tokenized_user_input[i] = token;
+    // printf("Testing: %s\n", token);
+
+    while (token != NULL)
+    {
+        i++;
+        token = strtok(NULL, " ");
+        space_tokenized_user_input[i] = token;
+        // printf("Testing: %s\n", token);
+    }
+
+    return space_tokenized_user_input;
+}
+
+// Returns 1 if true, 0 if false
+
+int check_for_Tree(char *user_input) 
+{
+    char **space_tokenized_user_input = tokenize_user_input_with_space(user_input);
+    
+    if (strcmp(space_tokenized_user_input[0], "Tree") == 0)
+    {
+        return 1;    
+    } 
+    else
+    {
+        return 0;
+    }
+}
+
+char **parse_tree_args(char *user_input)
+{
+    // TODO: !!! FREE IN PARENT PROCESS !!!
+    char **parsed_tree_input;                                                                 // Array of strings i.e. Array of char *.
+    parsed_tree_input = malloc(sizeof(*parsed_tree_input) * (MAX_LINE / 2 + 1)); // allocating space for 40 space separated arguments
+    initialize_with_NULL(parsed_tree_input);                                                  // Important to get length of total space separated tokens
+
+    for (int i = 0; i < MAX_LINE / 2 + 1; i++)
+    {
+        parsed_tree_input[i] = malloc(sizeof(**parsed_tree_input) * (MAX_LINE / 2 + 1)); // allocating space for each 40 space separated arguments i.e. one whole input of one child processs
+    }
+
+    int i = 0;
+    char *token = strtok(user_input, " ");
+    parsed_tree_input[i] = token;
+    // printf("Testing: %s\n", token);
+
+    while (i < 2)
+    {
+        i++;
+        token = strtok(NULL, "");
+        parsed_tree_input[i] = token;
+        // printf("Testing: %s\n", token);
+    }
+
+    return parsed_tree_input;
+}
+
+int in_order_traversal(struct node* tree_node, char *tree_user_input, int *i)
+{
+    if (tree_node == NULL)
+    {
+        return 0;
+    }
+    
+    in_order_traversal(tree_node->left_child, tree_user_input, i);
+    
+    if (tree_node->left_child != NULL)
+    {
+        tree_user_input[*i] = ' ';
+        tree_user_input[*i + 1] = '|';
+        tree_user_input[*i + 2] = ' ';
+        *i += 3;
+    }
+
+    int k;
+    for (k = 0; k < strlen(tree_node->data); k++)
+    {
+        tree_user_input[*i + k] = tree_node->data[k];
+    }
+
+    *i += k; 
+
+    if (tree_node->right_child != NULL)
+    {
+        tree_user_input[*i] = ' ';
+        tree_user_input[*i + 1] = '|';
+        tree_user_input[*i + 2] = ' ';
+        *i += 3;   
+    }
+
+    in_order_traversal(tree_node->right_child, tree_user_input, i);
+
+    return *i;
+}
+
+void initialize_tree_user_input_with_NULL(char *input)
+{
+    for (int i = 0; i < MAX_LINE / 2 + 1; i++)
+    {
+        input[i] = '\0';
+    }
+}
+
+// ==================================================
+
 int main(void)
 {
     int should_run = 1;
@@ -556,6 +678,24 @@ int main(void)
         if (pipe_found(user_input))
         {
             handle_pipe_commands(user_input) ;
+            continue;
+        }
+
+        if (check_for_Tree(strdup(user_input)) == 1)
+        {
+            char *tree_user_input = malloc(sizeof(char)*999);
+            initialize_tree_user_input_with_NULL(tree_user_input);
+            
+            char **parsed_tree_args = parse_tree_args(strdup(user_input));
+
+            if (parsed_tree_args[1] != NULL)
+            {
+                struct node *tree_root = tree_maker(parsed_tree_args[1]);
+                int i = 0;
+                in_order_traversal(tree_root, tree_user_input, &i);
+                printf("Tree input is: %s\n", tree_user_input);
+            }
+            
             continue;
         }
 
