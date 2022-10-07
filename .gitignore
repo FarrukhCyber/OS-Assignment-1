@@ -2,3 +2,4 @@
 simple-shell
 *.exe
 ./linked-list.c
+./test.c
